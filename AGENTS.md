@@ -13,7 +13,9 @@ Read `docs/development-tools.md` when setting up editors, native debuggers, lint
 
 ## Implementation and validation
 
-- `gamemodes/gmod_factory/gamemode/core/sh_logic.lua` contains engine-independent production rules.
+- Commit and push whenever reaching a test checkpoint or a stopping point. Record what was tested and any known failures; do not leave completed, tested work only in the local checkout.
+- `gamemodes/gmod_factory/gamemode/core/sh_logic.lua` contains contract and retained press rules; `core/sh_tier0.lua` contains terrain classification, raw resources, and separator rules.
+- Tier 0 begins with soil extraction. Read `docs/tier0.md`; keep all fractions accounted for and do not restore a free-blank source. `docs/logistics.md` records proposed transport, not implemented features.
 - `sv_factory.lua` owns issued stock, spawning, contracts, and persistence.
 - `entities/entities/gf_*` contains Wire machines and material entities.
 - Use distinct `gf_`/`ufg_` identifiers for hooks, network keys, commands, and entities.

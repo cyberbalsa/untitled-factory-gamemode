@@ -1,0 +1,15 @@
+@name Untitled Factory Gamemode - press sequencer
+@inputs Inlet Loaded Clamped Ready Done Blocked Fault ResetButton
+@outputs Load Clamp Cycle Eject Reset
+@trigger all
+
+# Match the press output names to these chip inputs.
+# Wire the chip outputs back to the corresponding press inputs.
+# Inlet=1 means a blank is waiting. This controls the press only;
+# you still build and program transport between the machines.
+
+Load = (Inlet == 1) & !Loaded & !Clamped & !Fault
+Clamp = Loaded & !Done & !Fault
+Cycle = Ready & !Fault
+Eject = Done & !Clamped & !Blocked & !Fault
+Reset = ResetButton

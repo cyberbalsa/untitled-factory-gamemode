@@ -1,0 +1,6 @@
+{
+  "title": "Untitled Factory Gamemode",
+  "type": "gamemode",
+  "tags": ["build", "fun"],
+  "ignore": [".venv/*", ".cache/*", "tests/*", "lua/ufg/tests/*", "tools/*", "docs/*", "examples/*", ".git/*", "*.md", "requirements-dev.txt"]
+}

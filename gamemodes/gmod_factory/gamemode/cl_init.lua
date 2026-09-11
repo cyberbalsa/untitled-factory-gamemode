@@ -16,17 +16,26 @@ hook.Add("HUDPaint", "gf_directive", function()
     local x, y = ScrW() - width - 16, 20
     local required = GetGlobalInt("gf_required", 10)
     local delivered = GetGlobalInt("gf_delivered", 0)
+    local target = GetGlobalString("gf_target", "gravel")
     draw.RoundedBox(5, x, y, width, 144, ink)
     surface.SetDrawColor(accent)
     surface.DrawRect(x, y, 3, 144)
     draw.SimpleText("OFFICE OF PRODUCTIVE LABOR", "GFSmall", x + 16, y + 13, accent)
     draw.SimpleText("DIRECTIVE " .. string.format("%03d", GetGlobalInt("gf_order", 1)), "GFTitle", x + 16, y + 34, white)
-    draw.SimpleText(delivered .. " / " .. required .. " servo components", "GFBody", x + 16, y + 66, white)
+    draw.SimpleText(delivered .. " / " .. required .. " " .. (GF.StockLabels[target] or target), "GFBody", x + 16, y + 66, white)
     surface.SetDrawColor(42, 61, 72)
     surface.DrawRect(x + 16, y + 94, width - 32, 4)
     surface.SetDrawColor(accent)
     surface.DrawRect(x + 16, y + 94, (width - 32) * math.Clamp(delivered / math.max(1, required), 0, 1), 4)
     draw.SimpleText("Favor " .. GetGlobalInt("gf_favor", 0) .. "   /   F1: briefing", "GFSmall", x + 16, y + 113, muted)
+
+    local reserveY = ScrH() - 200
+    draw.RoundedBox(5, 16, reserveY, 345, 88, ink)
+    draw.SimpleText("PERSONAL CONSTRUCTION RESERVE", "GFSmall", 30, reserveY + 10, accent)
+    draw.SimpleText("Gravel " .. ply:GetNWInt("gf_res_gravel", 0) .. "    Sand " .. ply:GetNWInt("gf_res_sand", 0),
+        "GFBody", 30, reserveY + 32, white)
+    draw.SimpleText("Clay " .. ply:GetNWInt("gf_res_clay", 0) .. "    Concentrate " .. ply:GetNWInt("gf_res_mineral", 0),
+        "GFBody", 30, reserveY + 57, white)
 
     if not GetGlobalBool("gf_wire_ready", false) then
         draw.RoundedBox(5, x, y + 154, width, 60, ink)
@@ -37,7 +46,9 @@ hook.Add("HUDPaint", "gf_directive", function()
     local ent = ply:GetEyeTrace().Entity
     if IsValid(ent) and ent:GetClass() == "gf_stock" and ply:GetPos():DistToSqr(ent:GetPos()) < 400 * 400 then
         local kind = ent:GetNWString("gf_kind", "")
-        draw.SimpleText(kind == "component" and "SERVO COMPONENT / Ready for tribute" or "METAL BLANK / Requires pressing",
+        local label = string.upper(GF.StockLabels[kind] or "Unknown material")
+        local purpose = kind == "soil" and " / Separate into raw resources" or kind == target and " / Requested for tribute" or " / Store for future orders"
+        draw.SimpleText(label .. purpose,
             "GFBody", ScrW() / 2, ScrH() / 2 + 40, accent, TEXT_ALIGN_CENTER)
     end
 end)
@@ -55,7 +66,7 @@ local function showBriefing()
     local kit = vgui.Create("DButton", briefing)
     kit:Dock(BOTTOM)
     kit:SetTall(42)
-    kit:SetText("Issue starter hardware at your crosshair")
+    kit:SetText("Build starter cell from your reserve (26 gravel, 12 sand, 10 clay, 18 concentrate)")
     kit.DoClick = function() briefing:Close() RunConsoleCommand("gf_starterkit") end
 
     local scroll = vgui.Create("DScrollPanel", briefing)
@@ -67,32 +78,47 @@ local function showBriefing()
     text:SetTextColor(white)
     text:SetWrap(true)
     text:SetAutoStretchVertical(true)
-    text:SetText([[Your overlords require servo components. Your continued usefulness is under review.
+    text:SetText([[Your overlords require raw resources. Your continued usefulness is under review.
 
-ASSIGNMENT 01 / BUILD A PRODUCTION CELL
+TIER 0 / EVERYTHING STARTS IN THE DIRT
 
-Look at a clear floor before requesting starter hardware, or spawn machines from Q > Entities > Untitled Factory Gamemode. Hardware starts frozen; use the physgun to position it.
+Look at clear grass or dirt before requesting starter hardware, or spawn machines from Q > Entities > Untitled Factory Gamemode. Keep the extractor upright and close to exposed ground. Its Ground output must be 1. The gf_ground console command surveys the surface under your crosshair.
 
-1. Wire Dispense on the feeder. Each 0-to-positive pulse issues one metal blank at its green dock.
-2. Build a way to move the blank to the press's amber dock. Try a chute, a piston, a grabber, or an E2-controlled transport. The physgun is useful while testing.
-3. Pulse Load, hold Clamp at 1, then pulse Cycle. Watch Busy and Progress. Keep the clamp closed until Done becomes 1.
-4. Set Clamp to 0. Once Clamped is 0 and Blocked is 0, pulse Eject. Move the finished component to the uplink's amber dock.
-5. Pulse Submit on the uplink. Deliver the full order to earn favor and receive a larger order.
+1. Wire Extract on the soil extractor. Each pulse issues one soil parcel if Ground and Ready are 1. The extractor has a two-second cooldown.
+2. Move soil from its green dock to the separator's amber dock. Build a chute, piston, grabber, or E2-controlled transport. Use the physgun while testing.
+3. Pulse Load when CanLoad is 1, then Cycle when Ready is 1. After four seconds, Done becomes 1: gravel, sand, clay, and mineral concentrate are waiting inside.
+4. Set Resource to 11, 12, 13, or 14. Pulse Eject for that fraction when Blocked is 0. Move each parcel clear and collect all four fractions before loading another batch.
+5. Feed separated resources into your construction hub and pulse Deposit to grow your personal reserve. Any player can supply a hub; its builder receives the resources, even while offline.
+6. The uplink's Target tells you which resource the overlords want. Move that resource to its amber dock and pulse Submit. Balance tribute against construction and storage.
 
 PROGRAM THE FACTORY
 
-Use Wire logic gates or Expression 2. Action inputs respond to a rising edge; holding an action high does not repeat it. Clamp is a continuous signal. Read the machine's outputs and wait for feedback before the next operation.
+Use Wire logic gates or Expression 2. Action inputs respond to a rising edge; holding an action high does not repeat it. Resource is a selection value. Read the outputs and wait for feedback before the next operation.
 
-Inlet: 0 = empty, 1 = blank, 2 = component.
-Ready, Loaded, Clamped, Busy, Done, Blocked: 0 or 1.
+Resource IDs: 10 soil, 11 gravel, 12 sand, 13 clay, 14 mineral concentrate. Inlet 0 means empty. Target uses the same IDs.
+Gravel, Sand, Clay, Mineral: quantities waiting inside. Pending: total fractions remaining.
+Ground, CanLoad, Ready, Loaded, Busy, Done, Blocked: 0 or 1.
 Progress: 0 to 100. Fault: 0 means operational.
-If the press faults, correct the cause and pulse Reset. Reset during a cycle stops it and preserves the unfinished blank.
+If the separator faults, correct the cause and pulse Reset. Reset cancels processing but keeps the soil. Finished fractions survive Reset. To recover unprocessed soil, select Resource 10 and pulse Eject while idle.
 
 COOPERATIVE LABOR
 
 Everyone contributes to the same order. Order progress and favor save per map; solo and multiplayer have separate progress files. Contraptions and loose items are not automatically saved in this prototype. Duplicated machines start empty.
 
-Prototype rules: free hardware and blanks, limited loose items, no deadline. The first goal is a reliable unattended cell.]])
+CONSTRUCTION RESERVE
+
+Your one-time bootstrap is 40 gravel, 30 sand, 20 clay, and 40 concentrate per map and play mode. Death and reconnecting do not grant it again. The starter cell costs 26 / 12 / 10 / 18 respectively, leaving materials for props and Wire devices.
+
+Hub: 8 gravel, 2 sand, 4 clay, 4 concentrate.
+Extractor: 6 gravel, 2 sand, 4 concentrate.
+Separator: 8 gravel, 4 sand, 4 clay, 6 concentrate.
+Uplink: 4 gravel, 4 sand, 2 clay, 4 concentrate.
+Ordinary counted build objects: 1 gravel each.
+Wire devices, gates and E2 chips: 1 sand + 1 concentrate each.
+
+Moving, rewiring and editing existing objects is free. Undo/removal releases their construction cost to the original builder. Duplicates require their own resources. Run gf_resources to inspect totals and prices. Spent materials remain reserved while the build exists; reload returns them because factory structures are not yet saved.
+
+Prototype rules: renewable soil, limited loose items, no deadline or power requirement yet. Transfer rails are planned; the current docks use physical parcels. The first goal is a reliable unattended cell.]])
 end
 
 net.Receive("gf_help", showBriefing)

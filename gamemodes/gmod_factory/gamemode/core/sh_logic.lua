@@ -121,7 +121,14 @@ function Logic.NewContract(saved)
         favor = integer(saved.favor, 0, 0, 1000000000)}
 end
 
-function Logic.Deliver(contract)
+local orderResources = {"gravel", "sand", "clay", "mineral"}
+
+function Logic.OrderResource(order)
+    return orderResources[(order - 1) % #orderResources + 1]
+end
+
+function Logic.Deliver(contract, kind)
+    if kind ~= Logic.OrderResource(contract.order) then return false end
     contract.delivered = contract.delivered + 1
     if contract.delivered < Logic.Quota(contract.order) then return false end
     contract.favor = math.min(1000000000, contract.favor + 100)

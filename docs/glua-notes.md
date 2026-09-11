@@ -70,6 +70,8 @@ Luctus recommends SQLite for frequently changing structured data and JSON files 
 
 Project application: the prototype saves a tiny contract record as JSON after delivery. Revisit persistence before scaling throughput or saving whole factories. Future saves must account for machines, contained material, Wire links, constraints, and orders together. Distinguish SQL errors from empty results and use parameter binding where supported.
 
+Personal construction accounts use SteamID64 string keys. Load that JSON with `util.JSONToTable(data, false, true)` so numeric-looking keys stay strings; the default conversion cannot preserve their identity correctly. Source: [Facepunch: JSONToTable](https://wiki.facepunch.com/gmod/util.JSONToTable).
+
 ## Lag and hot reload
 
 First distinguish client frame/rendering problems from server simulation delays. Use `net_graph 3` alongside FPS and server measurements. Isolate addon conflicts by testing smaller sets in a separate local session. Source: [Luctus: lag diagnosis](https://luctus.at/wiki/server/identify_lag/).
@@ -82,8 +84,10 @@ See [development tools](development-tools.md) for the original gm_rdb, its newer
 
 ## Project validation record
 
-On September 11, 2026, 21 Lua rule/syntax checks and all 22 engine smoke assertions passed. The game reported `2026.05.08`; the installed Wiremod reported Workshop `2026.09.10 (d6cf473)`. The smoke test covers real ports, physical items, interlocks, output obstruction, duplication, order completion, the file API, and compilation of our example controller by the installed Expression 2 compiler.
+On September 11, 2026, the Tier 0/construction checkpoint passed 55 Lua rule/syntax checks and 47 engine smoke assertions. The game reported `2026.05.08`; Wiremod reported Workshop `2026.09.10 (d6cf473)`. The engine confirmed real grass displacement metadata (`MAT_GRASS`, surface `grass`), extraction exclusions, separation, output retention, material-specific orders, hub deposits, resource persistence, build refunds, actual E2 chip costs, and compilation of both E2 examples.
 
 A direct executable launch reported zero mounted Workshop addons. The repeatable engine test therefore used a temporary filesystem link to the locally extracted, installed Wiremod archive. Test links were removed afterward. The developer's gamemode link remains installed.
 
 Client visuals, a fully wired E2 transport line, and a second remote player's synchronization still require hands-on checks. The engine helper exits its disposable game instance; do not use it in an ongoing play session.
+
+The Tier 0 smoke test now separates Wire input pulses across engine ticks. Installed Wiremod limits repeated input callbacks at the same `CurTime`; sending many unrelated test cases in one tick can suppress later commands. Resetting the machine's edge state alone does not reset that Wire limit. Keep deterministic stock placement distinct from a physics-driven transport playtest.

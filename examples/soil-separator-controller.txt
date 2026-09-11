@@ -1,0 +1,21 @@
+@name Untitled Factory Gamemode - Tier 0 separator
+@inputs Inlet CanLoad Ready Done Blocked Fault Gravel Sand Clay Mineral ResetButton
+@outputs Load Cycle Resource Eject Reset
+@persist Pulse
+@trigger all
+
+# Wire each input to the matching separator output, and each output to its input.
+# This sequences the separator only. Build transport and storage for every fraction.
+# A clock ensures new rising edges even when a parcel moves between feedback ticks.
+interval(200)
+if (clk()) { Pulse = !Pulse }
+
+Load = CanLoad & (Inlet == 10) & !Fault & Pulse
+Cycle = Ready & !Fault & Pulse
+Resource = 10
+if (Gravel > 0) { Resource = 11 }
+elseif (Sand > 0) { Resource = 12 }
+elseif (Clay > 0) { Resource = 13 }
+elseif (Mineral > 0) { Resource = 14 }
+Eject = Done & !Blocked & !Fault & Pulse
+Reset = ResetButton

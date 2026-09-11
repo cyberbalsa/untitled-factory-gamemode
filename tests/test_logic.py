@@ -146,13 +146,22 @@ def test_contract_completion_and_restore(rules):
     contract = logic.NewContract()
     assert logic.Quota(contract.order) == 10
     for _ in range(9):
-        assert not logic.Deliver(contract)
-    assert logic.Deliver(contract)
+        assert not logic.Deliver(contract, "gravel")
+    assert logic.Deliver(contract, "gravel")
     assert contract.order == 2 and contract.favor == 100 and contract.delivered == 0
     assert logic.Quota(contract.order) == 15
-    logic.Deliver(contract)
+    logic.Deliver(contract, "sand")
     restored = logic.NewContract(contract)
     assert restored.order == 2 and restored.delivered == 1 and restored.favor == 100
+
+
+def test_orders_reject_wrong_resources_and_rotate(rules):
+    _, logic = rules
+    contract = logic.NewContract()
+    for kind in (None, "soil", "component", "sand", "clay", "mineral"):
+        assert not logic.Deliver(contract, kind)
+        assert contract.delivered == 0 and contract.order == 1 and contract.favor == 0
+    assert [logic.OrderResource(i) for i in range(1, 6)] == ["gravel", "sand", "clay", "mineral", "gravel"]
 
 
 @pytest.mark.parametrize("saved", [None, "bad", False, 7])

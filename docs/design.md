@@ -1,61 +1,32 @@
 # Design: program your factory
 
-The core player activity is building and programming contraptions. A machine exposes one physical operation, its commands, and its feedback. It must not silently provide the entire automation sequence.
+The core player activity is building and programming contraptions. Machines expose physical operations, commands, and feedback. Players supply sequencing, routing, and recovery with Wiremod gates or Expression 2.
 
-The setting is a sci-fi industrial outpost requisitioned by distant overlords. Their orders give players a reason to improve throughput, reliability, and fault handling. Spacebuild, Factories, and FactoryRP are references; this project has a new implementation.
+The setting is a sci-fi industrial outpost requisitioned by distant overlords. Orders give players a reason to improve throughput, reliability, and fault handling. Spacebuild, Factories, and FactoryRP are references; this project has a new implementation.
 
-## First production cell
+## Current baseline: Tier 0
 
 ```text
-Wire-controlled feeder -> player-built transport -> servo press
-servo press -> player-built transport -> tribute uplink -> shared order
+Dirt/grass -> soil extractor -> player-built transport -> soil separator
+Separator -> gravel, sand, clay, mineral concentrate -> storage or tribute
 ```
 
-Amber boxes mark input docks. Green boxes mark output docks. Only material physically at the inlet can be loaded or submitted. The press stores one workpiece while processing and creates a physical item again when commanded to eject. It never transfers items to the next machine automatically.
+See [Tier 0](tier0.md) for resource IDs, the exact recipe, terrain detection, machine ports, faults, and save behavior. The starter cell purchases an extractor, separator, uplink, and construction hub from the player's bootstrap reserve. All production starts with soil. The earlier free-blank feeder is removed; the press remains a dormant later-tier prototype.
 
-## Wire interface
+Amber boxes mark input docks and green boxes mark output docks. Only issued material physically at a dock can be loaded or submitted. Separators retain their complete batch until the player commands each fraction to eject. They do not move output to the next machine automatically.
 
-Actions trigger once when their value changes from zero/nonpositive to positive. A continuously high action does not repeat. Positive finite values are high; Clamp is a continuous level. Inlet values are `0` empty, `1` blank, `2` component.
-
-| Machine | Inputs | Outputs |
-| --- | --- | --- |
-| Blank feeder | `Dispense` pulse | `Ready`, `Blocked`, `Limited`, `Dispensed` |
-| Servo press | `Load`, `Cycle`, `Eject`, `Reset` pulses; `Clamp` level | `Inlet`, `Loaded`, `Clamped`, `Ready`, `Busy`, `Done`, `Progress`, `Blocked`, `Fault` |
-| Tribute uplink | `Submit` pulse | `Inlet`, `Ready`, `Accepted`, `Rejected`, `Order`, `Delivered`, `Required`, `Favor` |
-
-Status signals are Boolean numbers except Inlet, Progress (0-100), Fault, and counters. `Done` remains high until the component is ejected. `Ready` on the press means a blank is loaded, clamped, idle, and fault-free. Uplink Ready means a component is waiting and its cooldown has elapsed. Feeder Ready includes output clearance, stock capacity, and its one-second cooldown.
-
-Signals update at 10 Hz. Controllers should use feedback rather than assuming commands succeed immediately. The optional E2 example only sequences the press; transport is still a construction/programming problem.
-
-### Press faults
-
-| Code | Meaning | Recovery |
-| --- | --- | --- |
-| 0 | Operational | None |
-| 1 | No blank | Supply a blank; reset |
-| 2 | Clamp closed during load/eject | Release clamp; reset |
-| 3 | Cycle requested without clamping | Clamp; reset |
-| 4 | Wrong material | Move a blank to the inlet; reset |
-| 5 | Clamp released during cycle | Reset, clamp, and restart the full cycle |
-| 6 | Output obstructed or loose-item limit reached | Clear space; reset |
-| 7 | Nothing to eject | Load material; reset |
-
-Reset clears the fault and cancels an active cycle without converting the blank. It does not release the clamp. An idle workpiece can be ejected for recovery. Requests to start another cycle while busy do not restart the clock.
+Action inputs require a fresh nonpositive-to-positive edge. Resource selection is a value. Status updates run at 10 Hz, and controllers should wait for feedback rather than assume success. The optional E2 example sequences the separator; transport and storage remain construction and programming problems.
 
 ## Multiplayer and persistence
 
-The server owns material identity, processing, delivery, and quotas. Clients display state and request ordinary Sandbox/Wire actions. Wiremod handles wire synchronization. Everyone contributes to one shared contract, including late joiners.
+The server owns material identity, processing, delivery, and quotas. Clients display state and request ordinary Sandbox/Wire actions. Wiremod carries machine signals. Everyone contributes to one shared contract. Late-join behavior still requires a remote-client playtest.
 
-Only issued stock is tracked as material. Arbitrary props and duplicated material entities do not count toward orders. Machine blueprints create empty hardware. The current prototype is intended for trusted cooperative groups; Sandbox building freedom and ordinary addon permissions remain in effect.
+Arbitrary props and duplicated material entities do not count as stock. Machine blueprints create empty hardware. The prototype is intended for trusted cooperative groups; Sandbox building freedom and ordinary addon permissions remain in effect.
 
-Orders and favor save under `data/gmod_factory/solo_<map>.json` or `coop_<map>.json`. Factory structures and loose stock are not automatically restored. World persistence needs a deliberate design covering constraints, Wire links, machine contents, and order state together.
+Tier 0 orders, favor, and personal construction totals save separately for solo and multiplayer per map. [Construction resources](construction.md) are reserved against live builds and return on removal. Factory structures, buffered material, and loose stock are not restored automatically. World persistence needs a design covering constraints, Wire links, machine contents, construction reservations, and order state together.
 
-## Next design questions
+## Next construction problem
 
-- Add programmable gantries, grippers, and loaders that make physical logistics satisfying.
-- Choose machine models and verify collision geometry, scale, dock placement, and visibility.
-- Introduce a second processing operation and mixed products to require sorting and routing.
-- Add finite inputs, power, and overloads after the first control loop is enjoyable.
-- Introduce overlord personalities, time-sensitive orders, and consequences with a forgiving learning phase.
+[Transfer rails](logistics.md) are the proposed solids transport system: physical loader/unloader docks, finite cargo slots, and Wire-controlled routing gates. Cargo can use lightweight records inside the rail while clients animate its travel. This is a proposed optimization and must be measured in a working factory.
 
-These are future directions, not implemented features.
+The first routing puzzle is collecting every separator fraction while sending only the requested resource to tribute. Further tiers can refine concentrate, turn sand and clay into useful products, add power, and give the overlords more demanding orders. Those features are future work.

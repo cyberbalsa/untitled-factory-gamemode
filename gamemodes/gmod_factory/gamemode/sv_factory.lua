@@ -6,7 +6,8 @@ local stockLimit = CreateConVar("gf_max_stock", "128", FCVAR_ARCHIVE, "Maximum l
 cleanup.Register("gf_machines")
 GF.LiveStock = GF.LiveStock or {}
 
-local savePath = "gmod_factory/" .. (game.SinglePlayer() and "solo_" or "coop_") .. game.GetMap() .. ".json"
+-- Preserve earlier component-prototype saves; Tier 0 has different order contents.
+local savePath = "gmod_factory/tier0_" .. (game.SinglePlayer() and "solo_" or "coop_") .. game.GetMap() .. ".json"
 local saved = file.Read(savePath, "DATA")
 GF.Contract = GF.Logic.NewContract(saved and util.JSONToTable(saved))
 
@@ -15,6 +16,7 @@ function GF.PublishContract()
     SetGlobalInt("gf_delivered", GF.Contract.delivered)
     SetGlobalInt("gf_required", GF.Logic.Quota(GF.Contract.order))
     SetGlobalInt("gf_favor", GF.Contract.favor)
+    SetGlobalString("gf_target", GF.Logic.OrderResource(GF.Contract.order))
 end
 
 function GF.SaveContract()
@@ -22,8 +24,9 @@ function GF.SaveContract()
     file.Write(savePath, util.TableToJSON(GF.Contract, true))
 end
 
-function GF.Deliver()
-    local completed = GF.Logic.Deliver(GF.Contract)
+function GF.Deliver(kind)
+    if kind ~= GF.Logic.OrderResource(GF.Contract.order) then return false end
+    local completed = GF.Logic.Deliver(GF.Contract, kind)
     GF.PublishContract()
     GF.SaveContract()
     if completed then
@@ -31,6 +34,7 @@ function GF.Deliver()
             ply:ChatPrint("DIRECTIVE: Shipment accepted. +100 favor. Your next order has arrived.")
         end
     end
+    return true
 end
 
 GF.PublishContract()
@@ -57,7 +61,9 @@ function GF.MakeStock(kind, position, angles, owner)
     if not IsValid(ent) then return end
     GF.LiveStock[ent] = kind
     ent:SetNWString("gf_kind", kind)
-    ent:SetColor(kind == "blank" and Color(120, 150, 165) or Color(65, 225, 180))
+    local resource = GF.Tier0.Resources[kind]
+    local color = resource and resource.color or {120, 150, 165}
+    ent:SetColor(Color(color[1], color[2], color[3]))
     if IsValid(owner) then
         ent:SetCreator(owner)
         owner:AddCleanup("gf_machines", ent)
@@ -86,6 +92,7 @@ end
 
 function GF.SpawnMachine(ply, class, position, angles)
     if not GF.Machines[class] or not IsValid(ply) then return end
+    if not GF.CanBuild(ply, GF.Build.Cost(class), true) then return end
     if not WireLib then ply:ChatPrint("Untitled Factory Gamemode requires Wiremod. Enable it and reload the map.") return end
     if ply:GetCount("gf_machines") >= machineLimit:GetInt() then
         ply:ChatPrint("Factory machine limit reached.") return
@@ -97,6 +104,7 @@ function GF.SpawnMachine(ply, class, position, angles)
     end
     local ent = ents.Create(class)
     if not IsValid(ent) then return end
+    if not GF.PayForBuild(ply, ent) then return end
     ent:SetPos(position)
     ent:SetAngles(angles)
     ent:SetPlayer(ply)
@@ -127,18 +135,26 @@ concommand.Add("gf_starterkit", function(ply)
         ply:ChatPrint("Look at clear, level ground within 600 units, then run gf_starterkit.") return
     end
     local angle = Angle(0, ply:EyeAngles().y + 90, 0)
+    local soil, reason = GF.CheckSoilTrace(trace)
+    if not soil then ply:ChatPrint("Place the starter extractor on soil: " .. reason .. ". Use gf_ground to survey.") return end
+    local total = {}
+    for _, class in ipairs(GF.StarterClasses) do
+        for kind, amount in pairs(GF.Build.Cost(class)) do total[kind] = (total[kind] or 0) + amount end
+    end
+    if not GF.CanBuild(ply, total, true) then return end
+    local built = 0
     undo.Create("Factory starter kit")
-    for index, class in ipairs({"gf_feeder", "gf_press", "gf_dispatch"}) do
-        local origin = trace.HitPos + angle:Forward() * ((index - 2) * 160)
+    for index, class in ipairs(GF.StarterClasses) do
+        local origin = trace.HitPos + angle:Forward() * ((index - 1) * 160)
         local ground = util.TraceLine({start = origin + Vector(0, 0, 32), endpos = origin - Vector(0, 0, 64), filter = ply})
         if ground.Hit and ground.HitNormal.z >= 0.8 then
             local ent = GF.SpawnMachine(ply, class, ground.HitPos + Vector(0, 0, 18), angle)
-            if IsValid(ent) then undo.AddEntity(ent) end
+            if IsValid(ent) then undo.AddEntity(ent) built = built + 1 end
         end
     end
     undo.SetPlayer(ply)
     undo.Finish()
-    ply:ChatPrint("Hardware issued. Build transport between the docks and wire your controller. F1: briefing.")
+    ply:ChatPrint("Built " .. built .. "/4 starter machines from your reserve. Extract soil and feed your hub to expand. F1: briefing.")
 end)
 
 function GM:ShowHelp(ply)
